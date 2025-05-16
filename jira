@@ -1,0 +1,165 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+import matplotlib.dates as mdates
+
+# Configuration
+JIRA_BASE_URL = "https://your-domain.atlassian.net"  # Replace with your Jira instance URL
+BEARER_TOKEN = "your_bearer_token"  # Replace with your Jira API bearer token
+BOARD_IDS = [123, 456]  # Replace with your Jira board IDs
+OUTPUT_FILE = "jira_roadmap.png"
+
+# Headers for API requests
+headers = {
+    "Authorization": f"Bearer {BEARER_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+def fetch_issues_from_board(board_id):
+    """Fetch issues from a specific Jira board."""
+    url = f"{JIRA_BASE_URL}/rest/agile/1.0/board/{board_id}/issue"
+    params = {
+        "jql": "status not in (Done, Closed)",  # Filter for active issues
+        "fields": "summary,project,issuetype,created,updated,duedate,fixVersions",
+        "maxResults": 100  # Adjust as needed
+    }
+    issues = []
+    try:
+        while True:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            issues.extend(data["issues"])
+            # Handle pagination
+            if data["startAt"] + data["maxResults"] >= data["total"]:
+                break
+            params["startAt"] = data["startAt"] + data["maxResults"]
+        print(f"Fetched {len(issues)} issues from board {board_id}")
+        return issues
+    except requests.RequestException as e:
+        print(f"Error fetching issues from board {board_id}: {e}")
+        return []
+
+def process_issues(issues):
+    """Process issues into a DataFrame."""
+    data = []
+    for issue in issues:
+        project_key = issue["fields"]["project"]["key"]
+        issue_type = issue["fields"]["issuetype"]["name"]
+        summary = issue["fields"]["summary"]
+        created = issue["fields"]["created"].split("T")[0]
+        updated = issue["fields"]["updated"].split("T")[0]
+        due_date = issue["fields"].get("duedate", None)
+        fix_versions = [v["name"] for v in issue["fields"].get("fixVersions", [])]
+        data.append({
+            "project_key": project_key,
+            "issue_type": issue_type,
+            "summary": summary,
+            "created": created,
+            "updated": updated,
+            "due_date": due_date,
+            "fix_versions": ", ".join(fix_versions) if fix_versions else None
+        })
+    return pd.DataFrame(data)
+
+def combine_project_data(board_ids):
+    """Combine issues from multiple boards, grouping by project."""
+    all_issues = []
+    for board_id in board_ids:
+        issues = fetch_issues_from_board(board_id)
+        all_issues.extend(issues)
+    if not all_issues:
+        print("No issues fetched from any board.")
+        return pd.DataFrame()
+    df = process_issues(all_issues)
+    return df
+
+def visualize_roadmap(df):
+    """Visualize project/feature timelines and milestones."""
+    if df.empty:
+        print("No data to visualize.")
+        return
+    
+    # Filter for relevant issue types (e.g., Epic, Story, Task)
+    df = df[df["issue_type"].isin(["Epic", "Story", "Task"])].copy()
+    
+    # Convert dates to datetime
+    df["created"] = pd.to_datetime(df["created"])
+    df["due_date"] = pd.to_datetime(df["due_date"])
+    df["updated"] = pd.to_datetime(df["updated"])
+    
+    # Create a figure
+    plt.figure(figsize=(12, 8))
+    
+    # Plot timelinesVlines for milestones
+    y_pos = 0
+    projects = df["project_key"].unique()
+    
+    for project in projects:
+        project_issues = df[df["project_key"] == project]
+        for _, row in project_issues.iterrows():
+            start = row["created"]
+            end = row["due_date"] if pd.notnull(row["due_date"]) else row["updated"]
+            plt.hlines(y_pos, start, end, colors="C0", lw=4)
+            plt.plot(start, y_pos, "o", color="C0", label="Created" if y_pos == 0 else "")
+            if pd.notnull(row["due_date"]):
+                plt.plot(end, y_pos, "s", color="C1", label="Due Date" if y_pos == 0 else "")
+            y_pos += 1
+    
+    # Customize the plot
+    plt.yticks(range(len(df)), [f"{row['project_key']}: {row['summary'][:20]}" for _, row in df.iterrows()])
+    plt.xlabel("Date")
+    plt.title("Jira Project Roadmap")
+    plt.grid(True)
+    plt.legend()
+    
+    # Format x-axis dates
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+    plt.gca().xaxis.set_major_locator(mdates.MonthLocator())
+    plt.xticks(rotation=45)
+    
+    plt.tight_layout()
+    plt.savefig(OUTPUT_FILE)
+    plt.show()
+    print(f"Roadmap saved as {OUTPUT_FILE}")
+
+def generate_insights(df):
+    """Generate insights from the combined project data."""
+    if df.empty:
+        print("No data to analyze.")
+        return
+    
+    print("\n=== Insights ===")
+    # Projects and issue counts
+    print("\nIssues per Project:")
+    print(df["project_key"].value_counts())
+    
+    # Issue types
+    print("\nIssues by Type:")
+    print(df["issue_type"].value_counts())
+    
+    # Overdue issues
+    df["due_date"] = pd.to_datetime(df["due_date"])
+    overdue = df[df["due_date"] < datetime.now()]
+    print(f"\nOverdue Issues: {len(overdue)}")
+    if not overdue.empty:
+        print(overdue[["project_key", "summary", "due_date"]])
+    
+    # Fix versions
+    fix_versions = df["fix_versions"].dropna().str.split(", ").explode().value_counts()
+    print("\nIssues by Fix Version:")
+    print(fix_versions)
+
+def main():
+    # Fetch and combine data
+    df = combine_project_data(BOARD_IDS)
+    
+    # Generate insights
+    generate_insights(df)
+    
+    # Visualize roadmap
+    visualize_roadmap(df)
+
+if __name__ == "__main__":
+    main()
