@@ -1,0 +1,19 @@
+{
+    "linux_server": {
+        "host": "your-linux-server.example.com",
+        "username": "your-linux-username",
+        "port": 22,
+        "comment": "SSH connection details for Linux server"
+    },
+    "screenshot_settings": {
+        "local_port": 5000,
+        "save_directory": "C:\\AuditScreenshots",
+        "comment": "Screenshot capture settings"
+    },
+    "notes": {
+        "setup": "1. Replace 'your-linux-server.example.com' with actual Linux server hostname or IP",
+        "setup2": "2. Replace 'your-linux-username' with your Linux username",
+        "setup3": "3. Ensure SSH key authentication is configured (run ssh-keygen and ssh-copy-id)",
+        "usage": "Run 'python windows_start_audit.py' to start the audit system"
+    }
+}

@@ -1,0 +1,103 @@
+{
+    "audit_metadata": {
+        "auditor_name": "Your Name",
+        "environment": "production",
+        "compliance_framework": "SOX/ISO27001/PCI-DSS",
+        "comment": "Metadata about the audit session"
+    },
+    
+    "screenshot_service": {
+        "url": "http://localhost:5000",
+        "timeout": 10,
+        "comment": "Screenshot service URL (via SSH tunnel) and timeout in seconds"
+    },
+    
+    "commands": [
+        {
+            "name": "System Hostname",
+            "command": "hostname",
+            "description": "Verify server identity",
+            "critical": true
+        },
+        {
+            "name": "System Uptime",
+            "command": "uptime",
+            "description": "Check system uptime and load average",
+            "critical": true
+        },
+        {
+            "name": "Kernel Version",
+            "command": "uname -a",
+            "description": "Display kernel and system information",
+            "critical": true
+        },
+        {
+            "name": "Disk Usage",
+            "command": "df -h",
+            "description": "Check filesystem disk space usage",
+            "critical": true
+        },
+        {
+            "name": "Memory Usage",
+            "command": "free -h",
+            "description": "Display memory usage statistics",
+            "critical": false
+        },
+        {
+            "name": "Network Interfaces",
+            "command": "ip addr show",
+            "description": "List all network interfaces and IP addresses",
+            "critical": true
+        },
+        {
+            "name": "Listening Ports",
+            "command": "ss -tuln | head -20",
+            "description": "Show TCP and UDP listening ports (top 20)",
+            "critical": true
+        },
+        {
+            "name": "Running Processes",
+            "command": "ps aux --sort=-%mem | head -15",
+            "description": "Top 15 processes by memory usage",
+            "critical": false
+        },
+        {
+            "name": "User Accounts",
+            "command": "cat /etc/passwd | grep -v nologin | tail -10",
+            "description": "List user accounts with shell access (last 10)",
+            "critical": true
+        },
+        {
+            "name": "Login History",
+            "command": "last -10",
+            "description": "Recent login history (last 10 logins)",
+            "critical": true
+        },
+        {
+            "name": "Cron Jobs",
+            "command": "crontab -l 2>/dev/null || echo 'No cron jobs for current user'",
+            "description": "List scheduled cron jobs for current user",
+            "critical": false
+        },
+        {
+            "name": "System Services",
+            "command": "systemctl list-units --type=service --state=running | head -15",
+            "description": "List running systemd services (top 15)",
+            "critical": false
+        }
+    ],
+    
+    "output_options": {
+        "log_directory": "~/audit-logs",
+        "generate_html_report": true,
+        "generate_json_log": true,
+        "comment": "Output settings for audit results"
+    },
+    
+    "notes": {
+        "customization": "Add your own audit commands to the 'commands' array",
+        "critical_flag": "Set 'critical': true for commands that must succeed",
+        "command_format": "Each command should be a valid shell command string",
+        "example_add": "To add a command: {\"name\": \"...\", \"command\": \"...\", \"description\": \"...\", \"critical\": true/false}"
+    }
+}
