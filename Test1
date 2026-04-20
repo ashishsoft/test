@@ -1,0 +1,46 @@
+
+Source File (CSV/Excel) → Python Conversion → Parquet + TOC File → CDM Quarantine Bucket (GCS) → BigQuery S_ Table
+CDM Next is a pre-installed framework on the server; the developer's job is to prepare the right input files and trigger the process correctly �.
+Step-by-Step Developer Workflow
+Step 1: Understand the Source
+Identify your SOR (System of Record) — e.g., NEW, CMOD, HCLT �.
+Know the source file format (CSV or Excel), field names, and delimiter (default is comma; Excel needs no delimiter — Pandas reads it natively) �.
+Step 2: Raise a DRT ID
+Go to the DRT (Data Registration Tool) portal and raise a request for your data source �.
+The request goes for approval (to Kathy or the designated approver).
+Once approved, you receive a DRT ID — this is mandatory before development begins �.
+This ID is cross-validated by CDM Next against the Data Plex at runtime; mismatches cause load failures �.
+Step 3: Create the Three Configuration JSON Files
+These are the core inputs to the Python conversion code �:
+Step 4: Run the Python Conversion Code
+The Python code reads the source file using Pandas, applies the source-to-target field name mapping, converts fields to BigQuery-compatible data types using the schema JSON, and generates two output files �:
+Parquet file — the data payload (with schema attached matching BQ target)
+TOC (Table of Contents) file — metadata file containing DRT ID, pipeline type (incremental), object name, object format (Parquet), CDM landing type (GCS), target type (BQ), target path, write disposition (right_append or right_truncate), record count, column count, business date �
+The Parquet and TOC files must share the same file name, differing only in extension �.
+Step 5: Run the CDM Driver Shell Script
+A shell script wrapper calls the pre-installed CDM Next Python script �.
+The script scans the base output folder, detects paired Parquet + TOC files, and pushes them to the GCS quarantine bucket �.
+CDM Next then validates the DRT ID against Data Plex, checks record counts, checks schema compatibility, and loads data into the S_ (sanitized) table in BigQuery within 5–10 minutes �.
+Step 6: Identify the Correct Target Dataset
+Confirm with the data modeler and product owner which dataset the data belongs to �:
+Servicing data → servicing_non_SAR_sanitized
+Organization data → org_non_SAR_sanitized
+Capital Markets → capital_markets_non_SAR_sanitized
+SAR-sanitized datasets exist but are only used for restricted data (HCL data does not qualify) �.
+Step 7: Create the BigQuery DDL and Deploy via Harness
+Write a standard DDL (no partition columns — CDM Next does not support loading into partitioned tables) �.
+Deploy the DDL via Harness (team members familiar with Harness can assist) �.
+To query today's data post-load, filter using HDS_LOAD_TIMESTAMP or HDS_BUSINESS_DATE since no partitions are available �.
+Step 8: Set Up Data Plex (Aspect Binding + PII Tagging)
+Two separate JSON files must be created for Data Plex setup �:
+Aspect Binding JSON — registers the DRT ID against the target table in Data Plex (enables CDM cross-validation)
+Policy Tag Taxonomy JSON — defines PII columns (e.g., borrower_SSN, co_borrower_SSN) with confidentiality type (con_PII or con_PII_date)
+⚠️ Important distinction: Tagging in Data Plex only marks a field as PII visually in the schema. Actual data encryption/masking only happens when you apply the Policy Tag Taxonomy at the BigQuery table level �. Both files are needed for full PII compliance.
+Step 9: Repository Split — What Goes Where
+Key Validations CDM Next Performs Automatically
+DRT ID in TOC file must match Data Plex registration �
+Parquet schema must match the target BQ table schema (data types + nullable flags) �
+Record count in TOC file is reconciled against rows loaded into BQ �
+Control file (for ABs / data governance): expects aggregate controls like record count and unpaid balance amount — plan for this in scope or Phase 2 �
+Upcoming Next Steps (Per the Session)
+A follow-up session was planned to cover the Curation Framework — which handles moving data from the S_ table to the next downstream layer �. That session would complete the end-to-end picture.
